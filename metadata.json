@@ -1,0 +1,5 @@
+{
+  "name": "React TODO Application",
+  "description": "A modern and visually appealing TODO list application built with React, TypeScript, and Tailwind CSS. It allows users to add, toggle, filter, and delete tasks, with a clean and responsive user interface.",
+  "requestFramePermissions": []
+}
