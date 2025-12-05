@@ -6,32 +6,20 @@ pipeline {
         REGION = "asia-south1"
         REPO = "gemini-repo"
         SERVICE = "gemini-app"
-
-        // Use the JSON key uploaded in Jenkins credentials
-        GCLOUD_CREDS = credentials('gcp-json')
-
-        // Docker will use this custom config path so Jenkins doesn't get confused
-        DOCKER_CONFIG = "$WORKSPACE/.docker"
     }
 
     stages {
 
         stage('Authenticate to Google Cloud') {
             steps {
-                sh '''
-                    echo "=== Activating GCP Service Account ==="
-                    mkdir -p ${DOCKER_CONFIG}
-
-                    # Authenticate using JSON key
-                    gcloud auth activate-service-account 409285328475-compute@developer.gserviceaccount.com \
-                        --key-file="${GCLOUD_CREDS}"
-
-                    # Set project
-                    gcloud config set project ${PROJECT_ID}
-
-                    # Configure Docker to use gcloud credentials
-                    gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
-                '''
+                withCredentials([file(credentialsId: 'gcp-sa', variable: 'GCLOUD_KEY')]) {
+                    sh '''
+                        echo "=== Activating GCP Service Account ==="
+                        gcloud auth activate-service-account 409285328475-compute@developer.gserviceaccount.com --key-file="$GCLOUD_KEY"
+                        gcloud config set project neat-pagoda-477804-m8
+                        gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
+                    '''
+                }
             }
         }
 
@@ -44,18 +32,11 @@ pipeline {
         stage('Docker Build') {
             steps {
                 script {
-                    IMAGE = "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:${BUILD_NUMBER}"
-                    sh "docker build -t ${IMAGE} ."
+                    IMAGE = "asia-south1-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:${BUILD_NUMBER}"
                 }
-            }
-        }
-
-        stage('Docker Login (Token-based)') {
-            steps {
                 sh '''
-                    echo "=== Docker Login to Artifact Registry ==="
-                    gcloud auth print-access-token | docker login \
-                        -u oauth2accesstoken --password-stdin https://${REGION}-docker.pkg.dev
+                    echo "=== Building Docker Image ==="
+                    docker build -t ${IMAGE} .
                 '''
             }
         }
@@ -63,7 +44,10 @@ pipeline {
         stage('Push Image to Artifact Registry') {
             steps {
                 sh '''
-                    echo "=== Pushing Image to Artifact Registry ==="
+                    echo "=== Docker Login using gcloud token ==="
+                    gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://asia-south1-docker.pkg.dev
+                    
+                    echo "=== Pushing Image ==="
                     docker push ${IMAGE}
                 '''
             }
@@ -71,7 +55,7 @@ pipeline {
 
         stage('Deploy to Cloud Run') {
             steps {
-                sh """
+                sh '''
                     echo "=== Deploying to Cloud Run ==="
                     gcloud run deploy ${SERVICE} \
                         --image ${IMAGE} \
@@ -79,7 +63,7 @@ pipeline {
                         --platform managed \
                         --allow-unauthenticated \
                         --project ${PROJECT_ID}
-                """
+                '''
             }
         }
     }
