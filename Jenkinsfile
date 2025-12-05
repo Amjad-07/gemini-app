@@ -19,8 +19,7 @@ pipeline {
         stage('Docker Build') {
             steps {
                 script {
-                    // IMPORTANT: use https:// prefix so Docker auth matches
-                    IMAGE = "https://${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:${BUILD_NUMBER}"
+                    IMAGE = "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:${BUILD_NUMBER}"
                     sh "docker build -t ${IMAGE} ."
                 }
             }
@@ -34,7 +33,7 @@ pipeline {
                     # Configure docker authentication for Artifact Registry
                     gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
 
-                    # Force manual docker login with gcloud token
+                    # Must login using https:// prefix
                     gcloud auth print-access-token | docker login \
                         -u oauth2accesstoken --password-stdin https://${REGION}-docker.pkg.dev
                 '''
