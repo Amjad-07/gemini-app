@@ -7,10 +7,33 @@ pipeline {
         REPO = "gemini-repo"
         SERVICE = "gemini-app"
 
-        DOCKER_CONFIG = "/var/lib/jenkins/.docker"
+        // Use the JSON key uploaded in Jenkins credentials
+        GCLOUD_CREDS = credentials('gcp-json')
+
+        // Docker will use this custom config path so Jenkins doesn't get confused
+        DOCKER_CONFIG = "$WORKSPACE/.docker"
     }
 
     stages {
+
+        stage('Authenticate to Google Cloud') {
+            steps {
+                sh '''
+                    echo "=== Activating GCP Service Account ==="
+                    mkdir -p ${DOCKER_CONFIG}
+
+                    # Authenticate using JSON key
+                    gcloud auth activate-service-account 409285328475-compute@developer.gserviceaccount.com \
+                        --key-file="${GCLOUD_CREDS}"
+
+                    # Set project
+                    gcloud config set project ${PROJECT_ID}
+
+                    # Configure Docker to use gcloud credentials
+                    gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+                '''
+            }
+        }
 
         stage('Install Dependencies') {
             steps {
@@ -27,38 +50,35 @@ pipeline {
             }
         }
 
-        stage('GCloud Auth for Docker') {
+        stage('Docker Login (Token-based)') {
             steps {
                 sh '''
-                    echo "Authenticating Docker with gcloud..."
-
-                    gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
-
+                    echo "=== Docker Login to Artifact Registry ==="
                     gcloud auth print-access-token | docker login \
                         -u oauth2accesstoken --password-stdin https://${REGION}-docker.pkg.dev
-
-                    echo "Docker config file used by Jenkins:"
-                    cat /var/lib/jenkins/.docker/config.json
                 '''
             }
         }
 
         stage('Push Image to Artifact Registry') {
             steps {
-                // 🔥 FORCE docker to use the correct config file
-                sh "docker --config=/var/lib/jenkins/.docker push ${IMAGE}"
+                sh '''
+                    echo "=== Pushing Image to Artifact Registry ==="
+                    docker push ${IMAGE}
+                '''
             }
         }
 
         stage('Deploy to Cloud Run') {
             steps {
                 sh """
-                gcloud run deploy ${SERVICE} \
-                    --image ${IMAGE} \
-                    --region ${REGION} \
-                    --platform managed \
-                    --allow-unauthenticated \
-                    --project ${PROJECT_ID}
+                    echo "=== Deploying to Cloud Run ==="
+                    gcloud run deploy ${SERVICE} \
+                        --image ${IMAGE} \
+                        --region ${REGION} \
+                        --platform managed \
+                        --allow-unauthenticated \
+                        --project ${PROJECT_ID}
                 """
             }
         }
