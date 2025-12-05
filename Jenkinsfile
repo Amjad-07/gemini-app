@@ -6,32 +6,20 @@ pipeline {
         REGION = "asia-south1"
         REPO = "gemini-repo"
         SERVICE = "gemini-app"
-
-        // Use your actual Jenkins credential ID
-        GCLOUD_CREDS = credentials('gcp-sa')
-
-        // Ensure Docker reads credentials inside workspace
-        DOCKER_CONFIG = "$WORKSPACE/.docker"
     }
 
     stages {
 
         stage('Authenticate to Google Cloud') {
             steps {
-                sh '''
-                    echo "Activating service account..."
-
-                    mkdir -p ${DOCKER_CONFIG}
-
-                    # Authenticate using JSON key
-                    gcloud auth activate-service-account --key-file="${GCLOUD_CREDS}"
-
-                    # Set project
-                    gcloud config set project ${PROJECT_ID}
-
-                    # Configure Docker to use gcloud helper
-                    gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
-                '''
+                withCredentials([file(credentialsId: 'gcp-json', variable: 'GCLOUD_KEY')]) {
+                    sh '''
+                        echo === Activating GCP Service Account ===
+                        gcloud auth activate-service-account 409285328475-compute@developer.gserviceaccount.com --key-file="$GCLOUD_KEY"
+                        gcloud config set project neat-pagoda-477804-m8
+                        gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
+                    '''
+                }
             }
         }
 
@@ -44,8 +32,10 @@ pipeline {
         stage('Docker Build') {
             steps {
                 script {
-                    IMAGE = "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:${BUILD_NUMBER}"
-                    sh "docker build -t ${IMAGE} ."
+                    env.IMAGE = "asia-south1-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:${BUILD_NUMBER}"
+
+                    echo "=== Building Docker Image: ${env.IMAGE} ==="
+                    sh "docker build -t ${env.IMAGE} ."
                 }
             }
         }
@@ -54,8 +44,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Logging into Artifact Registry..."
-                    gcloud auth print-access-token | docker login \
-                        -u oauth2accesstoken --password-stdin https://${REGION}-docker.pkg.dev
+                    gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://asia-south1-docker.pkg.dev
                 '''
             }
         }
@@ -71,14 +60,15 @@ pipeline {
 
         stage('Deploy to Cloud Run') {
             steps {
-                sh """
+                sh '''
+                    echo === Deploying to Cloud Run ===
                     gcloud run deploy ${SERVICE} \
                         --image ${IMAGE} \
                         --region ${REGION} \
                         --platform managed \
                         --allow-unauthenticated \
-                        --project ${PROJECT_ID}
-                """
+                        --project neat-pagoda-477804-m8
+                '''
             }
         }
     }
