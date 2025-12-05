@@ -5,7 +5,7 @@ const Header: React.FC = () => {
   return (
     <header className="flex justify-between items-center">
       <h1 className="text-4xl font-extrabold tracking-widest text-white uppercase">
-        Todo Amji
+        Todo amjad
       </h1>
       {/* Dark mode toggle can be added here */}
     </header>
