@@ -12,11 +12,15 @@ pipeline {
 
         stage('Authenticate to Google Cloud') {
             steps {
-                withCredentials([file(credentialsId: 'gcp-json', variable: 'GCLOUD_KEY')]) {
+                withCredentials([file(credentialsId: 'gcp-sa', variable: 'GCLOUD_KEY')]) {
                     sh '''
-                        echo === Activating GCP Service Account ===
+                        echo "=== Activating GCP Service Account ==="
                         gcloud auth activate-service-account 409285328475-compute@developer.gserviceaccount.com --key-file="$GCLOUD_KEY"
+
+                        echo "=== Setting Project ==="
                         gcloud config set project neat-pagoda-477804-m8
+
+                        echo "=== Configuring Docker Authentication ==="
                         gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
                     '''
                 }
@@ -43,8 +47,9 @@ pipeline {
         stage('Docker Login (Token-based)') {
             steps {
                 sh '''
-                    echo "Logging into Artifact Registry..."
-                    gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://asia-south1-docker.pkg.dev
+                    echo "=== Logging Into Artifact Registry ==="
+                    gcloud auth print-access-token | docker login \
+                        -u oauth2accesstoken --password-stdin https://asia-south1-docker.pkg.dev
                 '''
             }
         }
@@ -52,7 +57,7 @@ pipeline {
         stage('Push Image to Artifact Registry') {
             steps {
                 sh '''
-                    echo "Pushing image..."
+                    echo "=== Pushing Image to Artifact Registry ==="
                     docker push ${IMAGE}
                 '''
             }
@@ -61,7 +66,7 @@ pipeline {
         stage('Deploy to Cloud Run') {
             steps {
                 sh '''
-                    echo === Deploying to Cloud Run ===
+                    echo "=== Deploying to Cloud Run ==="
                     gcloud run deploy ${SERVICE} \
                         --image ${IMAGE} \
                         --region ${REGION} \
