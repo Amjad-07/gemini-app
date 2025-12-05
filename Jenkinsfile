@@ -5,20 +5,14 @@ pipeline {
         PROJECT_ID = "neat-pagoda-477804-m8"
         REGION = "asia-south1"
         REPO = "gemini-repo"
-        SERVICE = "gemini-app"   // Cloud Run service name (change if needed)
+        SERVICE = "gemini-app"
     }
 
     stages {
 
-        stage('Checkout Code') {
-            steps {
-                git 'https://github.com/Amjad-07/gemini-app.git'
-            }
-        }
-
         stage('Install Dependencies') {
             steps {
-                sh "npm install"
+                sh 'npm install'
             }
         }
 
@@ -41,11 +35,11 @@ pipeline {
             steps {
                 sh """
                 gcloud run deploy ${SERVICE} \
-                  --image ${IMAGE} \
-                  --region ${REGION} \
-                  --platform managed \
-                  --allow-unauthenticated \
-                  --project ${PROJECT_ID}
+                    --image ${IMAGE} \
+                    --region ${REGION} \
+                    --platform managed \
+                    --allow-unauthenticated \
+                    --project ${PROJECT_ID}
                 """
             }
         }
