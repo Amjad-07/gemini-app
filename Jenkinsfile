@@ -6,6 +6,9 @@ pipeline {
         REGION = "asia-south1"
         REPO = "gemini-repo"
         SERVICE = "gemini-app"
+
+        // 🔥 CRITICAL FIX: Tell Docker where Jenkins stores its auth file
+        DOCKER_CONFIG = "/var/lib/jenkins/.docker"
     }
 
     stages {
@@ -19,7 +22,9 @@ pipeline {
         stage('Docker Build') {
             steps {
                 script {
+                    // Correct image tag format (NO https://)
                     IMAGE = "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:${BUILD_NUMBER}"
+
                     sh "docker build -t ${IMAGE} ."
                 }
             }
@@ -30,12 +35,15 @@ pipeline {
                 sh '''
                     echo "Authenticating Docker with gcloud..."
 
-                    # Configure docker authentication for Artifact Registry
+                    # Register Docker credential helper for GAR
                     gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
 
-                    # Must login using https:// prefix
+                    # Explicit docker login using access token
                     gcloud auth print-access-token | docker login \
                         -u oauth2accesstoken --password-stdin https://${REGION}-docker.pkg.dev
+
+                    echo "Docker auth file:"
+                    cat /var/lib/jenkins/.docker/config.json
                 '''
             }
         }
