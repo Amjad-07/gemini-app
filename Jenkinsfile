@@ -25,6 +25,16 @@ pipeline {
             }
         }
 
+        stage('GCloud Auth for Docker') {
+            steps {
+                sh '''
+                    echo "Authenticating Docker with gcloud..."
+                    gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+                    gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://${REGION}-docker.pkg.dev
+                '''
+            }
+        }
+
         stage('Push Image to Artifact Registry') {
             steps {
                 sh "docker push ${IMAGE}"
